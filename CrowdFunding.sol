@@ -27,7 +27,7 @@ contract CrowdFunding {
     }
     
     function setSponsor(address _sponsor) public {
-        sponsor = SponsorFunding(address(_sponsor));
+        sponsor = SponsorFunding(_sponsor);
     }
     
     function getBalance() public view returns (uint) {
