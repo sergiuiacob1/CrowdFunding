@@ -39,7 +39,12 @@ contract CrowdFunding {
         distributeFundingContract = _distributeFundingContract;
     }
     
-    function setSponsor(address payable sponsorAddress) public{
+    function depositUsingParameter(uint256 deposit) public payable {  //deposit ETH using a parameter
+        require(msg.value == deposit);
+        deposit = msg.value;
+    }
+    
+    function setSponsor(address payable sponsorAddress) public {
         sponsor = SponsorFunding(sponsorAddress);
         address payable thisAddress = payable(address(this));
         
@@ -58,7 +63,7 @@ contract CrowdFunding {
     
     function endCrowdFunding() private {
         sponsor.sponsorContract(payable(address(this)));
-        distributeFundingContract.transfer(fundingGoal);
+        distributeFundingContract.transfer(address(this).balance);
     }
     
     function returnFunds(address payable contributorAddress, uint sum) public {
