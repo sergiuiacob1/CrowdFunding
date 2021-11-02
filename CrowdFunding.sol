@@ -8,24 +8,26 @@ contract CrowdFunding {
      uint private fundingGoal;
      uint private totalFunded;
      bool private fundable;
-     uint private sponsorCount;
+     uint private contributorCount;
      address payable distributeFundingContract;
+     SponsorFunding sponsor;
+     uint sponsorSum;
      
-     struct sponsorData {
+     struct contributorData {
          uint sum;
-         string sponsorName;
-         address payable sponsorAddress;
+         string contributorName;
+         address payable contributorAddress;
      }
      
-     mapping(uint => sponsorData) sponsors;
-     mapping(address => uint) sponsorToId;
+     mapping(uint => contributorData) contributors;
+     mapping(address => uint) contributorToId;
     
-    constructor(uint _fundingGoal, address payable _distributeFundingContract) {
+    constructor(uint _fundingGoal) payable {
         fundingGoal = _fundingGoal;
         fundable = true;
         totalFunded = 0;
-        sponsorCount = 0;
-        distributeFundingContract = _distributeFundingContract;
+        contributorCount = 0;
+        sponsorSum = 0;
     }
     
     function getFundingGoal() public view returns (uint) {
@@ -36,13 +38,17 @@ contract CrowdFunding {
         fundingGoal = _fundingGoal;
     }
     
-    function registerSponsor(address payable sponsorAddress, string memory name) public {
-        sponsors[sponsorCount] = sponsorData({
-            sum: 0,
-            sponsorName: name,
-            sponsorAddress: sponsorAddress
-        });
-        sponsorToId[sponsorAddress] = sponsorCount++;
+    function setDistributeFundingContract(address payable _distributeFundingContract) public {
+        distributeFundingContract = _distributeFundingContract;
+    }
+    
+    function setSponsor(address payable sponsorAddress) public{
+        sponsor = SponsorFunding(sponsorAddress);
+        address payable thisAddress = payable(address(this));
+        
+        if (sponsor.canSponsorContract(thisAddress)) {
+            sponsorSum = sponsor.getSponsorshipValue(thisAddress);
+        }
     }
     
     function isFundable() public view returns (bool) {
@@ -54,35 +60,32 @@ contract CrowdFunding {
     }
     
     function endCrowdFunding() private {
-        for (uint sponsorId = 0; sponsorId < sponsorCount; ++sponsorId) {
-            SponsorFunding sponsorContract = SponsorFunding(sponsors[sponsorId].sponsorAddress);
-            
-            sponsorContract.sponsorContract(payable(address(this)));
-        }
-        
+        sponsor.sponsorContract(payable(address(this)));
         distributeFundingContract.transfer(fundingGoal);
     }
     
-    function returnFunds(address payable sponsorAddress, uint sum) public {
-        require(sponsors[sponsorToId[sponsorAddress]].sum < sum, "This sponsor has deposited less than the requested eth.");
+    function returnFunds(address payable contributorAddress, uint sum) public {
+        require(contributors[contributorToId[contributorAddress]].sum < sum, "This contributor has deposited less than the requested eth.");
         require(totalFunded < fundingGoal, "CrowdFunding has ended.");
         
         totalFunded -= sum;
-        sponsors[sponsorToId[sponsorAddress]].sum -= sum;
+        contributors[contributorToId[contributorAddress]].sum -= sum;
         
-        sponsorAddress.transfer(sum);
+        contributorAddress.transfer(sum);
     }
     
     receive() external payable {
-        uint fundingGoalLeft = fundingGoal - totalFunded - msg.value;
-        if (fundingGoalLeft < 0) {
-            sponsors[sponsorToId[msg.sender]].sum += msg.value + fundingGoalLeft;
-            totalFunded = fundingGoal;
-            sponsors[sponsorToId[msg.sender]].sponsorAddress.transfer(fundingGoalLeft);
+        require(totalFunded < fundingGoal, "Funding already achieved.");
+        
+        uint newTotalFunded = totalFunded + sponsorSum + msg.value;
+        uint keptValue = msg.value;
+        
+        if (newTotalFunded > fundingGoal) {
+            keptValue = msg.value - (newTotalFunded - fundingGoal);
+            payable(msg.sender).transfer(msg.value - keptValue);
         }
         
-        require(totalFunded < fundingGoal, "Funding already achieved.");
-        sponsors[sponsorToId[msg.sender]].sum += msg.value;
+        contributors[contributorToId[msg.sender]].sum += msg.value;
         totalFunded += msg.value;
         
     }
