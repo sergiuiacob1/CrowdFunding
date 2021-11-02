@@ -8,24 +8,25 @@ contract CrowdFunding {
      uint private fundingGoal;
      uint private totalFunded;
      bool private fundable;
-     uint private sponsorCount;
      address payable distributeFundingContract;
+     SponsorFunding sponsor;
+     uint sponsorSum;
+     address payable owner;
      
-     struct sponsorData {
+     struct contributorData {
          uint sum;
-         string sponsorName;
-         address payable sponsorAddress;
+         string contributorName;
+         address payable contributorAddress;
      }
      
-     mapping(uint => sponsorData) sponsors;
-     mapping(address => uint) sponsorToId;
-    
-    constructor(uint _fundingGoal, address payable _distributeFundingContract) {
+     mapping(address => contributorData) contributors;
+
+    constructor(uint _fundingGoal) payable {
         fundingGoal = _fundingGoal;
         fundable = true;
         totalFunded = 0;
-        sponsorCount = 0;
-        distributeFundingContract = _distributeFundingContract;
+        sponsorSum = 0;
+        owner = payable(msg.sender);
     }
     
     function getFundingGoal() public view returns (uint) {
@@ -36,13 +37,36 @@ contract CrowdFunding {
         fundingGoal = _fundingGoal;
     }
     
-    function registerSponsor(address payable sponsorAddress, string memory name) public {
-        sponsors[sponsorCount] = sponsorData({
-            sum: 0,
-            sponsorName: name,
-            sponsorAddress: sponsorAddress
-        });
-        sponsorToId[sponsorAddress] = sponsorCount++;
+    function setDistributeFundingContract(address payable _distributeFundingContract) public {
+        distributeFundingContract = _distributeFundingContract;
+    }
+    
+    function contribute() public payable {
+        require(totalFunded < fundingGoal, "Funding already achieved.");
+        
+        // uint newTotalFunded = totalFunded + sponsorSum + msg.value;
+        // uint keptValue = msg.value;
+        
+        // if (newTotalFunded > fundingGoal) {
+        //     keptValue = msg.value - (newTotalFunded - fundingGoal);
+        //     payable(msg.sender).transfer(msg.value - keptValue);
+        // }
+        
+        contributors[msg.sender].sum += msg.value;
+        totalFunded += msg.value;
+        
+        if (totalFunded >= fundingGoal) {
+            endCrowdFunding();
+        }
+    }
+    
+    function setSponsor(address payable sponsorAddress) public {
+        sponsor = SponsorFunding(sponsorAddress);
+        address payable thisAddress = payable(address(this));
+        
+        if (sponsor.canSponsorContract(thisAddress)) {
+            sponsorSum = sponsor.getSponsorshipValue(thisAddress);
+        }
     }
     
     function isFundable() public view returns (bool) {
@@ -54,36 +78,38 @@ contract CrowdFunding {
     }
     
     function endCrowdFunding() private {
-        for (uint sponsorId = 0; sponsorId < sponsorCount; ++sponsorId) {
-            SponsorFunding sponsorContract = SponsorFunding(sponsors[sponsorId].sponsorAddress);
-            
-            sponsorContract.sponsorContract(payable(address(this)));
-        }
-        
-        distributeFundingContract.transfer(fundingGoal);
+        sponsor.sponsorContract(payable(address(this)));
+        // distributeFundingContract.transfer(address(this).balance * 9 / 10);
+        distributeFundingContract.call{value: address(this).balance * 9 / 10}("");
+        fundable = false;
     }
     
-    function returnFunds(address payable sponsorAddress, uint sum) public {
-        require(sponsors[sponsorToId[sponsorAddress]].sum < sum, "This sponsor has deposited less than the requested eth.");
+    function returnFunds(address payable contributorAddress, uint sum) public {
+        require(contributors[contributorAddress].sum < sum, "This contributor has deposited less than the requested eth.");
         require(totalFunded < fundingGoal, "CrowdFunding has ended.");
         
         totalFunded -= sum;
-        sponsors[sponsorToId[sponsorAddress]].sum -= sum;
+        contributors[contributorAddress].sum -= sum;
         
-        sponsorAddress.transfer(sum);
+        contributorAddress.transfer(sum);
     }
     
     receive() external payable {
-        uint fundingGoalLeft = fundingGoal - totalFunded - msg.value;
-        if (fundingGoalLeft < 0) {
-            sponsors[sponsorToId[msg.sender]].sum += msg.value + fundingGoalLeft;
-            totalFunded = fundingGoal;
-            sponsors[sponsorToId[msg.sender]].sponsorAddress.transfer(fundingGoalLeft);
-        }
+        // require(totalFunded < fundingGoal, "Funding already achieved.");
         
-        require(totalFunded < fundingGoal, "Funding already achieved.");
-        sponsors[sponsorToId[msg.sender]].sum += msg.value;
-        totalFunded += msg.value;
+        // // uint newTotalFunded = totalFunded + sponsorSum + msg.value;
+        // // uint keptValue = msg.value;
         
+        // // if (newTotalFunded > fundingGoal) {
+        // //     keptValue = msg.value - (newTotalFunded - fundingGoal);
+        // //     payable(msg.sender).transfer(msg.value - keptValue);
+        // // }
+        
+        // contributors[msg.sender].sum += msg.value;
+        // totalFunded += msg.value;
+        
+        // if (totalFunded > fundingGoal) {
+        //     endCrowdFunding();
+        // }
     }
 }
