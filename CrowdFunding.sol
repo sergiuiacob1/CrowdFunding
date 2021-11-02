@@ -8,7 +8,6 @@ contract CrowdFunding {
      uint private fundingGoal;
      uint private totalFunded;
      bool private fundable;
-     uint private contributorCount;
      address payable distributeFundingContract;
      SponsorFunding sponsor;
      uint sponsorSum;
@@ -19,14 +18,12 @@ contract CrowdFunding {
          address payable contributorAddress;
      }
      
-     mapping(uint => contributorData) contributors;
-     mapping(address => uint) contributorToId;
-    
+     mapping(address => contributorData) contributors;
+
     constructor(uint _fundingGoal) payable {
         fundingGoal = _fundingGoal;
         fundable = true;
         totalFunded = 0;
-        contributorCount = 0;
         sponsorSum = 0;
     }
     
@@ -65,11 +62,11 @@ contract CrowdFunding {
     }
     
     function returnFunds(address payable contributorAddress, uint sum) public {
-        require(contributors[contributorToId[contributorAddress]].sum < sum, "This contributor has deposited less than the requested eth.");
+        require(contributors[contributorAddress].sum < sum, "This contributor has deposited less than the requested eth.");
         require(totalFunded < fundingGoal, "CrowdFunding has ended.");
         
         totalFunded -= sum;
-        contributors[contributorToId[contributorAddress]].sum -= sum;
+        contributors[contributorAddress].sum -= sum;
         
         contributorAddress.transfer(sum);
     }
@@ -77,15 +74,15 @@ contract CrowdFunding {
     receive() external payable {
         require(totalFunded < fundingGoal, "Funding already achieved.");
         
-        uint newTotalFunded = totalFunded + sponsorSum + msg.value;
-        uint keptValue = msg.value;
+        // uint newTotalFunded = totalFunded + sponsorSum + msg.value;
+        // uint keptValue = msg.value;
         
-        if (newTotalFunded > fundingGoal) {
-            keptValue = msg.value - (newTotalFunded - fundingGoal);
-            payable(msg.sender).transfer(msg.value - keptValue);
-        }
+        // if (newTotalFunded > fundingGoal) {
+        //     keptValue = msg.value - (newTotalFunded - fundingGoal);
+        //     payable(msg.sender).transfer(msg.value - keptValue);
+        // }
         
-        contributors[contributorToId[msg.sender]].sum += msg.value;
+        contributors[msg.sender].sum += msg.value;
         totalFunded += msg.value;
         
     }
