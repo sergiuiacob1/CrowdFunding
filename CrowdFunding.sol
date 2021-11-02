@@ -85,5 +85,8 @@ contract CrowdFunding {
         contributors[msg.sender].sum += msg.value;
         totalFunded += msg.value;
         
+        if (totalFunded > fundingGoal) {
+            endCrowdFunding();
+        }
     }
 }
