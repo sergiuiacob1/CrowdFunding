@@ -37,10 +37,6 @@ contract SponsorFunding {
     function canSponsorContract(address payable receiver) public view returns (bool) {
         CrowdFunding crowdFunding = CrowdFunding(receiver);
         
-        if (crowdFunding.isFundable() == false) {
-            return false;
-        }
-        
         if (sponsorshipRegistry[receiver].fundsDelivered == true) {
             return false;
         }
@@ -67,7 +63,6 @@ contract SponsorFunding {
     function sponsorContract(address payable receiver) payable public {
         CrowdFunding crowdFunding = CrowdFunding(receiver);
         
-        require(crowdFunding.isFundable(), "CrowdFunding contract not fundable!");
         require(sponsorshipRegistry[receiver].fundsDelivered == false, "CrowdFunding contract already funded!");
         
         uint sponsorshipValue = sponsorshipRegistry[receiver].percentage * address(receiver).balance / 100;
