@@ -29,6 +29,9 @@ contract SponsorFunding {
             percentage: _percentage,
             fundsDelivered: false
         });
+        
+        CrowdFunding crowdFunding = CrowdFunding(receiver);
+        crowdFunding.setSponsor(payable(address(this)));
     }
     
     function canSponsorContract(address payable receiver) public view returns (bool) {
