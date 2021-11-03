@@ -10,8 +10,10 @@ contract CrowdFunding {
      bool private fundable;
      address payable distributeFundingContract;
      SponsorFunding sponsor;
-     uint sponsorSum;
-     address payable owner;
+     
+     event ContributorFunded(uint sum);
+     event SponsorRegistered(address payable);
+     event CrowdFundingEnded(uint sentSum);
      
      struct contributorData {
          uint sum;
@@ -23,10 +25,7 @@ contract CrowdFunding {
 
     constructor(uint _fundingGoal) payable {
         fundingGoal = _fundingGoal;
-        fundable = true;
         totalFunded = 0;
-        sponsorSum = 0;
-        owner = payable(msg.sender);
     }
     
     function getFundingGoal() public view returns (uint) {
@@ -42,8 +41,9 @@ contract CrowdFunding {
     }
     
     function contribute() public payable {
-        require(totalFunded < fundingGoal, "Funding already achieved.");
+        require(isFundable(), "Funding already achieved.");
         
+        // uint sponsorSum = getSponsorValue();
         // uint newTotalFunded = totalFunded + sponsorSum + msg.value;
         // uint keptValue = msg.value;
         
@@ -55,22 +55,29 @@ contract CrowdFunding {
         contributors[msg.sender].sum += msg.value;
         totalFunded += msg.value;
         
-        if (totalFunded >= fundingGoal) {
-            endCrowdFunding();
-        }
+        // if (totalFunded + sponsorSum >= fundingGoal) {
+        //     endCrowdFunding();
+        // }
+        emit ContributorFunded(msg.value);
     }
     
     function setSponsor(address payable sponsorAddress) public {
         sponsor = SponsorFunding(sponsorAddress);
-        address payable thisAddress = payable(address(this));
-        
-        if (sponsor.canSponsorContract(thisAddress)) {
-            sponsorSum = sponsor.getSponsorshipValue(thisAddress);
-        }
+        emit SponsorRegistered(sponsorAddress);
     }
     
     function isFundable() public view returns (bool) {
-        return fundable;
+        return totalFunded + getSponsorValue() < fundingGoal;
+    }
+    
+    function getSponsorValue() private view returns (uint) {
+        address payable thisAddress = payable(address(this));
+        
+        if (sponsor.canSponsorContract(thisAddress)) {
+            return sponsor.getSponsorshipValue(thisAddress);
+        } else {
+            return 0;
+        }
     }
     
     function getBalance() public view returns (uint) {
@@ -78,9 +85,11 @@ contract CrowdFunding {
     }
     
     function endCrowdFunding() private {
-        sponsor.sponsorContract(payable(address(this)));
-        // distributeFundingContract.transfer(address(this).balance * 9 / 10);
-        distributeFundingContract.call{value: address(this).balance * 9 / 10}("");
+        require(!isFundable(), "CrowdFunding is not yet completed.");
+        address payable thisAddress = payable(address(this));
+        sponsor.sponsorContract(thisAddress);
+        emit CrowdFundingEnded(thisAddress.balance);
+        (bool success, bytes memory data) = distributeFundingContract.call{value: thisAddress.balance}("");
         fundable = false;
     }
     
