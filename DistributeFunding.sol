@@ -5,22 +5,19 @@ pragma solidity >=0.7.0 <0.9.0;
 contract DistributeFunding {
     struct Beneficiary {
         address payable beneficiaryWallet; // where the beneficiary should receive the money
-        uint256 portion; // how much the beneficiary receives from the CrowdFunding
+        uint256 percent; // how much the beneficiary receives from the CrowdFunding
     }
 
     // Maps each CrowdFunding contract to a list of beneficiaries
-    mapping(address => Beneficiary[]) public fundToBeneficiaries;
-    // Maps each beneficiary wallet to the CrowdFundings he's registered into
-    // mapping(address payable => address[]) public beneficiaryToCrowdFundings;
-    // Maps each CrowdFunding to the owner (the one who created the fund)
-    mapping(address => address) public fundOwner;
+    mapping(address => Beneficiary[]) public crowdFundingToBeneficiaries;
     // Memorizes how much of a contract has already been given
-    mapping(address => uint256) public fundToPortionGiven;
+    mapping(address => uint256) public crowdFundingPercentGiven;
     // Maps how much money was received from each CrowdFunding
     mapping(address => uint256) public moneyFromCrowdFundings;
 
-    event OwnerSet(address indexed oldOwner, address indexed newOwner);
-    event StartDistribution(address crowdFundingAddress);
+    event AddedBeneficiary(Beneficiary beneficiary, address crowdFundingAddress);
+    event StartDistribution(address crowdFundingAddress, Beneficiary[] beneficiaries);
+    event DistributionDone(address crowdFundingAddress, Beneficiary[] beneficiaries, uint totalSum);
     
     constructor() {}
     
@@ -28,31 +25,28 @@ contract DistributeFunding {
         return address(this).balance;
     }
     
-    function setCrowdFundingOwner(address crowdFunding) public {
-        require(msg.sender == crowdFunding, "Only the owner of the CrowdFunding can claim that the contract is his");
-        fundOwner[crowdFunding] = msg.sender;
-    }
+    // function setCrowdFundingOwner(address crowdFunding) public {
+    //     require(msg.sender == crowdFunding, "Only the owner of the CrowdFunding can claim that the contract is his");
+    //     crowdFundingOwner[crowdFunding] = msg.sender;
+    // }
 
-    modifier isCrowdFundingOwner(address crowdFunding) {
-        require(msg.sender == fundOwner[crowdFunding]);
-        _;
-    }
+    // modifier isCrowdFundingOwner(address crowdFunding) {
+    //     require(msg.sender == crowdFundingOwner[crowdFunding]);
+    //     _;
+    // }
 
     // Only the CrowdFunding owner can add a beneficiary
-    function addBeneficiary(
-        address crowdFunding,
-        address payable beneficiaryWalletAddr,
-        uint256 portion
-    ) public 
+    function addBeneficiary(address crowdFunding, address payable beneficiaryWalletAddr, uint256 percent) public 
     // isCrowdFundingOwner(crowdFunding) 
     {
         require(
-            fundToPortionGiven[crowdFunding] + portion <= 100,
+            crowdFundingPercentGiven[crowdFunding] + percent <= 100,
             "The portion for the beneficiary is too high."
         );
-        Beneficiary memory newBeneficiary = Beneficiary(payable(beneficiaryWalletAddr), portion);
-        fundToBeneficiaries[crowdFunding].push(newBeneficiary);
-        fundToPortionGiven[crowdFunding] += portion;
+        Beneficiary memory newBeneficiary = Beneficiary(payable(beneficiaryWalletAddr), percent);
+        crowdFundingToBeneficiaries[crowdFunding].push(newBeneficiary);
+        crowdFundingPercentGiven[crowdFunding] += percent;
+        emit AddedBeneficiary(newBeneficiary, crowdFunding);
     }
     
     // Receives "money" from a CrowdFunding
@@ -61,22 +55,22 @@ contract DistributeFunding {
     }
 
     // Distribute the funds of a CrowdFunding to the eligible people
-    function distributeFunds(address crowdFunding)
-        public
-        //isCrowdFundingOwner(crowdFunding)
-    {
+    function distributeFunds(address crowdFunding) public { // isCrowdFundingOwner(crowdFunding)
         require(
             moneyFromCrowdFundings[crowdFunding] > 0,
             "There are no funds for the CrowdFunding to distribute."
         );
-        Beneficiary[] memory beneficiars = fundToBeneficiaries[crowdFunding];
-
+        Beneficiary[] memory beneficiaries = crowdFundingToBeneficiaries[crowdFunding];
         uint256 totalSum = moneyFromCrowdFundings[crowdFunding];
+        
+        emit StartDistribution(crowdFunding, beneficiaries);
 
-        for (uint256 i = 0; i < beneficiars.length; i++) {
-            beneficiars[i].beneficiaryWallet.transfer(
-                totalSum * beneficiars[i].portion / 100
+        for (uint256 i = 0; i < beneficiaries.length; i++) {
+            beneficiaries[i].beneficiaryWallet.transfer(
+                totalSum * beneficiaries[i].percent / 100
             );
         }
+        
+        emit DistributionDone(crowdFunding, beneficiaries, totalSum);
     }
 }
